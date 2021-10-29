@@ -43,14 +43,26 @@ int getArgNumber(char *input){
         if(input[i]== 32){ // || input[i]== 10){ //if it's equal to ASCII white space or ASCII newline
             count++;        
         }
-        
+        // strip the new line character
+        if(strstr(input, "\n") != NULL){
+            int len = strlen(input);
+            char dest[len];
+            strncpy(dest, input, len-1);
+            strcpy(input, dest);
+        }
     }
-    //maybe strip new line here
-    // STRIP NEW LINE IF ITS THE LAST ARGUMENT/WORD
     return count;
 }
 
+//stopped at variable expansion.
+// use for loop maybe and 
+char* varExpand(char *token){
 
+    printf("var expansion%s\n", token);
+    
+    sprintf(token, token, getpid())
+    return token;
+}
 struct command *parseInput(char *input){
     struct command *currCommand = malloc(sizeof(struct command));
     // struct command currCommand = malloc(sizeof(struct command));
@@ -82,6 +94,7 @@ struct command *parseInput(char *input){
         else if(strstr(token, "$$") != NULL)
         {
             // do variable expansion
+            token = varExpand(token);
         }
         // then it is just an arg. 
         else{
@@ -111,10 +124,15 @@ int main()
         // display prompt
         printf(": ");
         fgets(userInput, MAX_CHARS, stdin);
-        
-        // get rid of new line character??
+
+        if(userInput[0] == '#' || userInput[0] == '\n'){
+            printf("Comment or blank line entered");
+            continue;
+        }
         currCommand = parseInput(userInput);
         char *firstArg = currCommand->user_command;
+        
+        printf("here\n");
         // check_builtIn(firstArg);
     }
     
