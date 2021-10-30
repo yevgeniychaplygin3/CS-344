@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #define MAX_CHARS 2048 
 #define MAX_ARGS 512
 struct command{
@@ -19,48 +20,60 @@ struct command{
 
 
 // }
-// void check_builtIn(char* userInput){
-//     // printf("%s", userInput);
-//     if(strcmp(userInput, "cd") == 0){
-//         printf("userinput == cd\n");
-//         changeDir(userInput);
-//     }
-//     else if(strcmp(userInput, "exit") == 0){
-//         printf("userinput == exit\n");
-//     }
-//     else if(strcmp(userInput, "status") == 0){
-//         printf("status== exit\n");
-//     }
-//     else{
-//         printf("not a built-in command\n");
-//     }
-// }
+void check_builtIn(char* userInput){
+    // printf("%s", userInput);
+    if(strcmp(userInput, "cd") == 0){
+        printf("userinput == cd\n");
+        changeDir(userInput);
+    }
+    else if(strcmp(userInput, "exit") == 0){
+        printf("userinput == exit\n");
+    }
+    else if(strcmp(userInput, "status") == 0){
+        printf("status== exit\n");
+    }
+    else{
+        printf("not a built-in command\n");
+    }
+}
 
 //debuginfo-install glibc-2.17-325.el7_9.x86_64
 int getArgNumber(char *input){
     int count;
     for(int i=0; input[i]; i++){
-        if(input[i]== 32){ // || input[i]== 10){ //if it's equal to ASCII white space or ASCII newline
+        if(input[i]== 32){              //if it's equal to ASCII white space or ASCII newline
             count++;        
         }
         // strip the new line character
-        if(strstr(input, "\n") != NULL){
+        if(input[i] == '\n'){                   
             int len = strlen(input);
-            char dest[len];
-            strncpy(dest, input, len-1);
-            strcpy(input, dest);
+            input[i] = '\0';
         }
     }
     return count;
 }
 
-//stopped at variable expansion.
-// use for loop maybe and 
 char* varExpand(char *token){
+    // copy string to new string
+    int len = strlen(token);
+    char expanVar[len];
+    strcpy(expanVar, token);
 
-    printf("var expansion%s\n", token);
-    
-    sprintf(token, token, getpid())
+    int varPid = getpid();
+
+    for (int i=0; i<strlen(token);i++){
+        // set up formating for sprintf. $$ should now be %d
+        if(token[i] == '$' && token[i+1] == '$')
+        {
+            if(strlen(token) > i+1){
+                expanVar[i] = '%';
+                expanVar[i+1] = 'd';
+            }
+        }
+        
+    }
+
+    sprintf(token, expanVar, varPid);
     return token;
 }
 struct command *parseInput(char *input){
@@ -132,8 +145,7 @@ int main()
         currCommand = parseInput(userInput);
         char *firstArg = currCommand->user_command;
         
-        printf("here\n");
-        // check_builtIn(firstArg);
+        check_builtIn(firstArg);
     }
     
     return 0;
