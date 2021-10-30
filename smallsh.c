@@ -11,26 +11,65 @@ struct command{
     char output_redir[255];
 
 };
-// void changeDir(char* userInput){
-//     // check to see if it has args
-//     int i=1;
-//     // if it does not have args then chdir to HOME 
 
-//     // if it has args then change to absolute or relative path
+// make sure to check to see that path exists or not
+void changeDir(struct command *currCommand){
+    // check to see if it has args
+    int check = 1;
+    char s[100];
+    char *homePath;
+    printf("%s\n", getcwd(s, 100));
+    if(*currCommand->user_args == NULL){
+        // printf("no args");
+    }
+    else{
+        // printf("%s", *currCommand->user_args);
+        check = 0;
+    }
+    switch (check){
+        // change to specified path name 
+    // if it has args then change to absolute or relative path
+        case 0:
+                chdir(*currCommand->user_args);
+                printf("%s\n", getcwd(s, 100));
+                break;
+        // change to HOME
+        // if it does not have args then chdir to HOME 
+        case 1:
+                homePath = getenv("HOME");
+                chdir(homePath);
+                printf("%s\n", getcwd(s, 100));
+                break;
+    }
+}
+void printStatus(){
+    int status;
+    if(WIFEXITED(status)){
+        int exit_status = WEXITSTATUS(status);       
+        printf("Exit status of the child was %d\n", exit_status);
+    }
+    else if(WIFSIGNALED(status)){
+        int exit_status = WEXITSTATUS(status);       
+        printf("Terminated by signal %d\n", WTERMSIG(exit_status));
+        fflush(stdout);
+    }
+}
 
+void check_builtIn(struct command *currCommand){
 
-// }
-void check_builtIn(char* userInput){
-    // printf("%s", userInput);
-    if(strcmp(userInput, "cd") == 0){
+    char *firstArg = currCommand->user_command;
+
+    if(strcmp(firstArg, "cd") == 0){
         printf("userinput == cd\n");
-        changeDir(userInput);
+        changeDir(currCommand);
     }
-    else if(strcmp(userInput, "exit") == 0){
+    else if(strcmp(firstArg, "exit") == 0){
         printf("userinput == exit\n");
+        exit(0);
     }
-    else if(strcmp(userInput, "status") == 0){
+    else if(strcmp(firstArg, "status") == 0){
         printf("status== exit\n");
+        printStatus();
     }
     else{
         printf("not a built-in command\n");
@@ -44,11 +83,15 @@ int getArgNumber(char *input){
         if(input[i]== 32){              //if it's equal to ASCII white space or ASCII newline
             count++;        
         }
-        // strip the new line character
+        // strip the new line character && try to strip white space from before newline
         if(input[i] == '\n'){                   
-            int len = strlen(input);
             input[i] = '\0';
+            if(input[i-1] == 32){
+                input[i-1] = '\0';
+                count--;
+            }
         }
+        
     }
     return count;
 }
@@ -117,7 +160,6 @@ struct command *parseInput(char *input){
 
         
         strcpy(argVar, token);
-        printf("hello4\n");
         currCommand->user_args[i] = argVar;
         }
         
@@ -130,7 +172,6 @@ int main()
 {
     while(1){
         // int numArgs;
-        
         char userInput[MAX_CHARS];
         struct command *currCommand = malloc(sizeof(struct command));
         
@@ -143,10 +184,11 @@ int main()
             continue;
         }
         currCommand = parseInput(userInput);
-        char *firstArg = currCommand->user_command;
-        
-        check_builtIn(firstArg);
+        // char *firstArg = currCommand->user_command;
+        // if its not built in then execute exec()
+        if(!check_builtIn(currCommand)){
+
+        }
     }
-    
     return 0;
 }
