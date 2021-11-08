@@ -7,12 +7,16 @@
 #define NUM_LINES 50
 
 char *buffer_1[NUM_LINES], *buffer_2[NUM_LINES], *buffer_3[NUM_LINES];
-// number of items in buffer 1
+// number of items in buffer
 int count_1 = 0, count_2 = 0, count_3 = 0;
 // index of the producer/input thread is going to be
 int prod_idx_1 = 0, prod_idx_2 = 0, prod_idx_3 = 0;
 // index of the consumer/output thread is going to be
 int con_idx_1 = 0, con_idx_2 = 0, con_idx_3 = 0;
+// Initialize the mutex for buffer
+pthread_mutex_t mutex_1 = PTHREAD_MUTEX_INITIALIZER, mutex_2 = PTHREAD_MUTEX_INITIALIZER, mutex_3 = PTHREAD_MUTEX_INITIALIZER;
+// Initialize the condition variable for buffer
+pthread_cond_t full_1 = PTHREAD_COND_INITIALIZER, full_2 = PTHREAD_COND_INITIALIZER, full_3 = PTHREAD_COND_INITIALIZER;
 
 char* get_buff_3(){
     char* aStringInput = buffer_3[con_idx_3];
@@ -43,7 +47,6 @@ void plus_sign_thread(){
         char *spaceSeperatedString = get_buff_2();
         int len = strlen(spaceSeperatedString);
         char copyString[len];
-        strcpy(copyString, spaceSeperatedString);
         for (int j =0; j<len; j++){
             strcpy(copyString, spaceSeperatedString);
             if(copyString[j] == '+' && copyString[j+1] == '+' && j+1<len){
@@ -68,13 +71,12 @@ char* get_buff_1(){
     count_1--;
     return aStringInput;
 }
-void line_seperator(){
+void *line_seperator(void *args){
     for(int i=0;i<2;i++){
         char* aString = get_buff_1();
         int newLineIndex = strlen(aString)-1;
         if(aString[newLineIndex] == '\n'){
             aString[newLineIndex] = ' ';
-            printf("new line\n");
             put_buff_2(aString);
         }
     }
@@ -91,7 +93,7 @@ char* get_user_input(){
     fgets(user_input, SIZE, stdin);
     return user_input;
 }
-void get_input(){
+void *get_input(void *args){
     for (int i=0; i<2; i++){
         char *line_input = get_user_input();
         // fgets(line_input, SIZE, stdin);
@@ -99,9 +101,11 @@ void get_input(){
     }
 }
 int main(int argc, char *argv[]){
-    get_input();
-    line_seperator();
-    plus_sign_thread();
+    pthread_t input_t, line_seperator_t, plus_sign_t, output_t;
+    pthread_create(&input_t, NULL, get_input, NULL);
+    pthread_create(&line_seperator_t, NULL, line_seperator, NULL);
+    pthread_create(&plus_sign_t, NULL, plus_sign_thread, NULL);
+    pthread_create(&output_t, NULL, output_thread, NULL);
     output_thread();
     return 0;
 }
