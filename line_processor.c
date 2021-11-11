@@ -5,7 +5,7 @@
 #include <string.h>
 #define SIZE 1000
 #define NUM_LINES 50
-//check for Stop-processing line
+//check for Stop-processing line. Need to change this and make the input buffer check for STOP itself.
 int check = 0;
 char *buffer_1[NUM_LINES], *buffer_2[NUM_LINES], *buffer_3[NUM_LINES];
 // number of items in buffer
@@ -25,38 +25,39 @@ char* get_buff_3(){
     count_3--;
     return aStringInput;
 }
+// STOPPED HERE AT TRYING TO PRINT OUTPUT WITH ONLY 80 CHARS
 void* output_thread(void *args){
+    // use a complete message buffer(maybe have a size of 1000 chars) and a read buffer to hold 80 chars.
+    // while we look through the string find the secret ending @@ signs 
     // get only 80 chars & stop when theres a stop
-    char printBuffer[80];
-        memset(printBuffer, '\0', 80);
-    // get the string at the index
-    char* printString = get_buff_3();
-    
-    for(int i=0;i<2;i++){
-        strncpy(printBuffer, printString, strlen(printString));
-        if(printBuffer[79]!='\0'){
-            printf("%s", printBuffer);
-            memset(printBuffer, '\0', 80);
-        }
-        printString = get_buff_3();
-    }
+    char readBuffer[81];
+    char completeMessage[1000];
+    memset(readBuffer, '\0', 81);
+    memset(completeMessage, '\0', 1000);
 
-    // strcat(printBuffer, printString);
-    // int len; 
-    // len = strlen(printBuffer);
-    // while(len < 80){
-        // printString = get_buff_3();
-        // if( (strlen(printBuffer) + strlen(printString) > 80){
-            // need to keep track of extra characters. 
-        // }
-        // strncat(printBuffer, printString, 80-strlen(printString));
-        // len = strlen(printBuffer);
-    // }
-    // check to see if all 80 chars are full.
-    // if(printArray[80]!= '\0'){
-    // }
-    printf("Final output string: %s\n", printBuffer);
-    
+    // get the string at the index
+    char* getString;
+    for(int i=0;i<NUM_LINES;i++){
+        getString = get_buff_3();
+        if(getString == NULL){break;}
+
+        strcat(completeMessage, getString);
+        // keep concatenating until we have at least 80 in completeMessage
+        while(completeMessage[80] == '\0'){
+            getString = get_buff_3();
+            if(getString == NULL){return NULL;}
+
+            strcat(completeMessage, getString);
+        }
+        // print the first 80. 
+        strncpy(readBuffer, completeMessage, 80);
+        readBuffer[80] = '\n';
+        // printf("%s\n", readBuffer);
+        if(strlen(readBuffer) >= 80){
+            write(1, readBuffer, 81);
+        }
+        memmove(completeMessage, completeMessage+80, sizeof(completeMessage) - sizeof(*completeMessage));
+    }
     return NULL;
 }
 void put_buff_3(char* string3){
@@ -74,8 +75,9 @@ char* get_buff_2(){
 }
 
 void* plus_sign_thread(void *args){
-    for(int i=0; i<2;i++){
+    for(int i=0; i<NUM_LINES;i++){
         char *spaceSeperatedString = get_buff_2();
+        if(spaceSeperatedString == NULL){break;}
         int len = strlen(spaceSeperatedString);
         char copyString[len];
         for (int j =0; j<len; j++){
@@ -104,17 +106,16 @@ char* get_buff_1(){
     return aStringInput;
 }
 void *line_seperator(void *args){
-    for(int i=0;i<2;i++){
+    for(int i=0;i<NUM_LINES;i++){
         char* aString = get_buff_1();
+        if(aString == NULL){break;}
         int newLineIndex = strlen(aString)-1;
         if(aString[newLineIndex] == '\n'){
-            char *lastWord = &aString[newLineIndex];
-            lastWord = lastWord-4;
-            if(strcmp(lastWord, "STOP\n") == 0){
-                // printf("stop processing now.");
-                check = 1;
+            if(aString[newLineIndex-1] == ' '){
+                aString[newLineIndex] = '\0';
+            }else{
+                aString[newLineIndex] = ' ';
             }
-            aString[newLineIndex] = ' ';
             put_buff_2(aString);
         }
     }
@@ -126,34 +127,51 @@ void put_buff_1(char *line){
     prod_idx_1 +=1;
     count_1++;
 }
-char* get_user_input(){
+char* get_user_input(void *args){
     char *user_input = calloc(SIZE, sizeof(char));
-    printf("Enter an input (no longer than 1000 characters): ");
-    fgets(user_input, SIZE, stdin);
+    // printf("Enter an input (no longer than 1000 characters): ");
+    fgets(user_input, SIZE, args);
     return user_input;
 }
 void *get_input(void *args){
-    for (int i=0; i<2; i++){
-        if(check == 1){return NULL;}
-        char *line_input = get_user_input();
-        // fgets(line_input, SIZE, stdin);
+    for (int i=0; i<NUM_LINES; i++){
+        char *line_input = get_user_input(args);
+        char* ret = strstr(line_input, "STOP\n");
+        if(ret != NULL)
+        {
+            if(*ret-1 == ' ' || strcmp(ret-1, "") == 0){
+                *ret = '@';
+                ret[1] = '@';
+                ret[2] = '\n';
+                ret[3] = '\0';
+                put_buff_1(line_input);
+                break;
+            }
+        }
         put_buff_1(line_input);
     }
     return NULL;
 }
 int main(int argc, char *argv[]){
     if(argc < 2){
-        printf("no input files"); 
-        get_input(NULL);
+        // printf("no input files"); 
+        get_input(stdin);
     }else{
-        printf("file:%s argc#:%d", argv[1], argc);
-        // FILE *fp = fopen(argv[1], "r");
+        // printf("file:%s argc#:%d", argv[1], argc);
+        FILE *fp = fopen(argv[1], "r");
+        get_input((void*) fp);
     }
    
     line_seperator(NULL);
     plus_sign_thread(NULL);
     output_thread(NULL);
-    // pthread_t input_t, line_seperator_t; //, plus_sign_t, output_t;
+
+
+    
+    return 0;
+}
+
+// pthread_t input_t, line_seperator_t; //, plus_sign_t, output_t;
     // pthread_create(&input_t, NULL, get_input, NULL);
     // pthread_create(&line_seperator_t, NULL, line_seperator, NULL);
     // pthread_create(&plus_sign_t, NULL, plus_sign_thread, NULL);
@@ -162,5 +180,3 @@ int main(int argc, char *argv[]){
     // pthread_join(line_seperator_t, NULL);
     // pthread_join(plus_sign_t, NULL);
     // pthread_join(output_t, NULL);
-    return 0;
-}
