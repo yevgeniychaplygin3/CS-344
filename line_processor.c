@@ -5,8 +5,7 @@
 #include <string.h>
 #define SIZE 1000
 #define NUM_LINES 50
-//check for Stop-processing line. Need to change this and make the input buffer check for STOP itself.
-int check = 0;
+
 char *buffer_1[NUM_LINES], *buffer_2[NUM_LINES], *buffer_3[NUM_LINES];
 // number of items in buffer
 int count_1 = 0, count_2 = 0, count_3 = 0;
@@ -20,21 +19,21 @@ pthread_mutex_t mutex_1 = PTHREAD_MUTEX_INITIALIZER, mutex_2 = PTHREAD_MUTEX_INI
 pthread_cond_t full_1 = PTHREAD_COND_INITIALIZER, full_2 = PTHREAD_COND_INITIALIZER, full_3 = PTHREAD_COND_INITIALIZER;
 
 char* get_buff_3(){
+    // pthread_mutex_lock(&mutex_3);
+    // while(count_3 == 0){
+    //     pthread_cond_wait(&full_3, &mutex_3);
+    // }
     char* aStringInput = buffer_3[con_idx_3];
     con_idx_3 = con_idx_3 + 1;
     count_3--;
+    // pthread_mutex_unlock(&mutex_3);
     return aStringInput;
 }
-// STOPPED HERE AT TRYING TO PRINT OUTPUT WITH ONLY 80 CHARS
 void* output_thread(void *args){
-    // use a complete message buffer(maybe have a size of 1000 chars) and a read buffer to hold 80 chars.
-    // while we look through the string find the secret ending @@ signs 
-    // get only 80 chars & stop when theres a stop
-    char readBuffer[81];
+    char readBuffer[81];    //read buffer to hold 80 chars
     char completeMessage[1000];
     memset(readBuffer, '\0', 81);
     memset(completeMessage, '\0', 1000);
-
     // get the string at the index
     char* getString;
     for(int i=0;i<NUM_LINES;i++){
@@ -52,7 +51,6 @@ void* output_thread(void *args){
         // print the first 80. 
         strncpy(readBuffer, completeMessage, 80);
         readBuffer[80] = '\n';
-        // printf("%s\n", readBuffer);
         if(strlen(readBuffer) >= 80){
             write(1, readBuffer, 81);
         }
@@ -62,22 +60,30 @@ void* output_thread(void *args){
 }
 void put_buff_3(char* string3){
     // add in mutex & condition variables
+    // pthread_mutex_lock(&mutex_3);
     buffer_3[prod_idx_3] = string3;
     prod_idx_3 = prod_idx_3 + 1;
     count_3++;
+    // pthread_cond_signal(&full_3);
+    // pthread_mutex_unlock(&mutex_3);
 }
 char* get_buff_2(){
     // add in mutex & condition variables
+    // pthread_mutex_lock(&mutex_2);
+    // while(count_2==0){
+    //     pthread_cond_wait(&full_2, &mutex_2);
+    // }
     char* aStringInput = buffer_2[con_idx_2];
     con_idx_2 = con_idx_2 + 1;
     count_2--;
+    // pthread_mutex_unlock(&mutex_2);
     return aStringInput;
 }
 
 void* plus_sign_thread(void *args){
     for(int i=0; i<NUM_LINES;i++){
         char *spaceSeperatedString = get_buff_2();
-        if(spaceSeperatedString == NULL){break;}
+        if(spaceSeperatedString == NULL){return NULL;}
         int len = strlen(spaceSeperatedString);
         char copyString[len];
         for (int j =0; j<len; j++){
@@ -94,21 +100,29 @@ void* plus_sign_thread(void *args){
 }
 void put_buff_2(char *line_seperator_string){
     // add in mutex & condition variables
+    // pthread_mutex_lock(&mutex_2);
     buffer_2[prod_idx_2] = line_seperator_string;
     prod_idx_2 +=1;
     count_2++;
+    // pthread_cond_signal(&full_2);
+    // pthread_mutex_unlock(&mutex_2);
 }
 char* get_buff_1(){
     // add in mutex & condition variables
+    // pthread_mutex_lock(&mutex_1);
+    // while(count_1 == 0){
+        // pthread_cond_wait(&full_1, &mutex_1);
+    // }
     char* aStringInput = buffer_1[con_idx_1];
     con_idx_1 = con_idx_1 + 1;
     count_1--;
+    // pthread_mutex_unlock(&mutex_1);
     return aStringInput;
 }
 void *line_seperator(void *args){
     for(int i=0;i<NUM_LINES;i++){
         char* aString = get_buff_1();
-        if(aString == NULL){break;}
+        if(aString == NULL){return NULL;}
         int newLineIndex = strlen(aString)-1;
         if(aString[newLineIndex] == '\n'){
             if(aString[newLineIndex-1] == ' '){
@@ -123,14 +137,17 @@ void *line_seperator(void *args){
 }
 void put_buff_1(char *line){
     // add in mutex & condition variables
+    // pthread_mutex_lock(&mutex_1);
     buffer_1[prod_idx_1] = line;
     prod_idx_1 +=1;
     count_1++;
+    // pthread_cond_signal(&full_1);
+    // pthread_mutex_unlock(&mutex_1);
 }
 char* get_user_input(void *args){
     char *user_input = calloc(SIZE, sizeof(char));
     // printf("Enter an input (no longer than 1000 characters): ");
-    fgets(user_input, SIZE, args);
+    fgets(user_input, SIZE, stdin);
     return user_input;
 }
 void *get_input(void *args){
@@ -145,7 +162,7 @@ void *get_input(void *args){
                 ret[2] = '\n';
                 ret[3] = '\0';
                 put_buff_1(line_input);
-                break;
+                return NULL;
             }
         }
         put_buff_1(line_input);
@@ -153,30 +170,18 @@ void *get_input(void *args){
     return NULL;
 }
 int main(int argc, char *argv[]){
-    if(argc < 2){
-        // printf("no input files"); 
-        get_input(stdin);
-    }else{
-        // printf("file:%s argc#:%d", argv[1], argc);
-        FILE *fp = fopen(argv[1], "r");
-        get_input((void*) fp);
-    }
-   
-    line_seperator(NULL);
-    plus_sign_thread(NULL);
-    output_thread(NULL);
-
-
-    
-    return 0;
-}
-
-// pthread_t input_t, line_seperator_t; //, plus_sign_t, output_t;
+    get_input(NULL); line_seperator(NULL); plus_sign_thread(NULL); output_thread(NULL);
+    // pthread_t input_t, line_seperator_t, plus_sign_t, output_t;
+    // create threads
     // pthread_create(&input_t, NULL, get_input, NULL);
     // pthread_create(&line_seperator_t, NULL, line_seperator, NULL);
     // pthread_create(&plus_sign_t, NULL, plus_sign_thread, NULL);
     // pthread_create(&output_t, NULL, output_thread, NULL);
+    // // wait for threads to terminate
     // pthread_join(input_t, NULL);
     // pthread_join(line_seperator_t, NULL);
     // pthread_join(plus_sign_t, NULL);
     // pthread_join(output_t, NULL);
+    return 0;
+}
+
