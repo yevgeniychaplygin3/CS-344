@@ -1,11 +1,16 @@
+/*code adapted from 6_5_prod_cons_pipeline.c in canvas.*/
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+// max size a line can hold
 #define SIZE 1000
+// Size of the buffers
 #define NUM_LINES 50
+// to indicate that it is the last item processed.
 char *specialmarker = "-1";
+// Buffers that will be shared between the producer and consumer threads.
 char *buffer_1[NUM_LINES], *buffer_2[NUM_LINES], *buffer_3[NUM_LINES];
 // number of items in buffer
 int count_1 = 0, count_2 = 0, count_3 = 0;
@@ -19,16 +24,22 @@ pthread_mutex_t mutex_1 = PTHREAD_MUTEX_INITIALIZER, mutex_2 = PTHREAD_MUTEX_INI
 pthread_cond_t full_1 = PTHREAD_COND_INITIALIZER, full_2 = PTHREAD_COND_INITIALIZER, full_3 = PTHREAD_COND_INITIALIZER;
 
 char* get_buff_3(){
+    // Lock the mutex before checking if the buffer has data
     pthread_mutex_lock(&mutex_3);
     while(count_3 == 0){
+        // Buffer is empty. Wait for the producer to signal that the buffer has data
         pthread_cond_wait(&full_3, &mutex_3);
     }
     char* aStringInput = buffer_3[con_idx_3];
+    // Increment the index from which the item will be picked up
     con_idx_3 = con_idx_3 + 1;
     count_3--;
+    // Unlock the mutex
     pthread_mutex_unlock(&mutex_3);
+    // return the string
     return aStringInput;
 }
+
 void* output_thread(void *args){
     char readBuffer[81];    //read buffer to hold 80 chars
     char completeMessage[1000];
@@ -40,61 +51,74 @@ void* output_thread(void *args){
         // keep concatenating until we have at least 80 in completeMessage
         do{
             getString = get_buff_3();
-            if(getString == NULL){break;}
+            if(getString == NULL){break;} // make sure the value returned isn't NULL.
             
             if(strstr(getString, "@@") != NULL){
-                // printf("End of file processing\n");
-                i += 100;
+                i += 100; // used to break out of the for loop
                 char *endIndex = strstr(getString, "@@");
-                *endIndex = '\0';
-
+                *endIndex = '\0'; // remove @@
                 strcat(completeMessage, getString);
-
                 break;
             }
 
             strcat(completeMessage, getString);
-
+            
         }while(completeMessage[80] == '\0');
 
         // print the first 80. 
         strncpy(readBuffer, completeMessage, 80);
+        // to output each string on a new line
         readBuffer[80] = '\n';
         if(strlen(readBuffer) >= 80){
             write(1, readBuffer, 81);
         }
-        memmove(completeMessage, completeMessage+80, sizeof(completeMessage) - sizeof(*completeMessage));
+        // move the starting index of completeMessage 80 characters. 
+        memmove(completeMessage, completeMessage+80, sizeof(completeMessage) - sizeof(*completeMessage)); 
     }
     return NULL;
 }
+
 void put_buff_3(char* string3){
+    // Lock the mutex before putting the item in the buffer
     pthread_mutex_lock(&mutex_3);
+    // Put the item in the buffer
     buffer_3[prod_idx_3] = string3;
+    // Increment the index where the next item will be put.
     prod_idx_3 = prod_idx_3 + 1;
     count_3++;
+    // Signal to the consumer that the buffer is no longer empty
     pthread_cond_signal(&full_3);
+    // Unlock the mutex
     pthread_mutex_unlock(&mutex_3);
 }
+
 char* get_buff_2(){
+    // Lock the mutex before checking if the buffer has data
     pthread_mutex_lock(&mutex_2);
     while(count_2==0){
+        // Buffer is empty. Wait for the producer to signal that the buffer has data
         pthread_cond_wait(&full_2, &mutex_2);
     }
     char* aStringInput = buffer_2[con_idx_2];
+    // Increment the index from which the item will be picked up
     con_idx_2 = con_idx_2 + 1;
     count_2--;
+    // Unlock the mutex
     pthread_mutex_unlock(&mutex_2);
+    // Return the string 
     return aStringInput;
 }
 
 void* plus_sign_thread(void *args){
-    // for(int i=0; i<NUM_LINES;i++){
     char *spaceSeperatedString = "";
+    // while there is still data that is processed in buffer_2
     while (strcmp(spaceSeperatedString, specialmarker) != 0){
+        // get the next avaliable string
         spaceSeperatedString = get_buff_2();
 
         int len = strlen(spaceSeperatedString);
         char copyString[len];
+        // check to see if there is ++ in the string. Replace with ^.
         for (int j =0; j<len; j++){
             strcpy(copyString, spaceSeperatedString);
             if(copyString[j] == '+' && copyString[j+1] == '+' && j+1<len){
@@ -103,11 +127,12 @@ void* plus_sign_thread(void *args){
                 sprintf(spaceSeperatedString, copyString, '^');
             }
         }
+        // put into buffer_3
         put_buff_3(spaceSeperatedString);
     }
-    // put_buff_3(specialmarker); //might not need because we already put it in the first one.
     return NULL;
 }
+
 void put_buff_2(char *line_seperator_string){
     // Lock the mutex before putting the item in the buffer
     pthread_mutex_lock(&mutex_2);
@@ -138,22 +163,24 @@ char* get_buff_1(){
 }
 void *line_seperator(void *args){
     char *aString = "";
-
+    // while there is still data that is processed in buffer_1
     while(strcmp(aString, specialmarker) != 0){
-
+        // get the next avaliable string
         aString = get_buff_1();
 
+        // go to the last index in the string and replace with space
         int newLineIndex = strlen(aString)-1;
         if(aString[newLineIndex] == '\n'){
-            if(aString[newLineIndex-1] == ' '){
+            if(aString[newLineIndex-1] == ' '){ // replace new line character with \0 null terminator to avoid putting an unnecessary space.
                 aString[newLineIndex] = '\0';
             }else{
                 aString[newLineIndex] = ' ';
             }
-            put_buff_2(aString);
+            // put into buffer_2
+            put_buff_2(aString); 
         }
     }
-    put_buff_2(specialmarker);
+    put_buff_2(specialmarker); // put -1 into the buffer_2
     return NULL;
 }
 void put_buff_1(char *line){
@@ -197,7 +224,6 @@ void *get_input(void *args){
     return NULL;
 }
 int main(int argc, char *argv[]){
-    // get_input(NULL); line_seperator(NULL); plus_sign_thread(NULL); output_thread(NULL);
     pthread_t input_t, line_seperator_t, plus_sign_t, output_t;
     // // create threads
     pthread_create(&input_t, NULL, get_input, NULL);
@@ -210,15 +236,5 @@ int main(int argc, char *argv[]){
     pthread_join(plus_sign_t, NULL);
     pthread_join(output_t, NULL);
 
-    // int retVal1, retVal2,retVal3,retVal4;
-    // retVal1 = pthread_join(input_t, NULL);
-    // printf("\n\n\nt1..%d\n", retVal1);
-    // retVal2 = pthread_join(line_seperator_t, NULL);
-    // printf("\n\n\nt2..%d\n", retVal2);
-    // retVal3 = pthread_join(plus_sign_t, NULL);
-    // printf("\n\n\nt3..%d\n", retVal3);
-    // retVal4 = pthread_join(output_t, NULL);
-    // printf("\n\n\nt4..%d\n", retVal4);
     return 0;
 }
-
