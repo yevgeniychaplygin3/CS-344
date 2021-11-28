@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/wait.h> 
-#define BUFFER_SIZE 512
+#define BUFFER_SIZE 70000
 
 void error(const char *msg) { 
   perror(msg); 
@@ -86,7 +86,7 @@ int main(int argc, char* argv[]){
 
     int listenSocket, portNumber, charsRead, connectionSocket;
     char buffer[BUFFER_SIZE];
-    static int n;
+    int n;
 
     struct sockaddr_in serverAddress, clientAddress;
     socklen_t sizeOfClientInfo = sizeof(clientAddress);
@@ -135,7 +135,7 @@ int main(int argc, char* argv[]){
 
         }
 
-        printf("SERVER: Connected to client running at host %d port %d\n", ntohs(clientAddress.sin_addr.s_addr), ntohs(clientAddress.sin_port));
+        // printf("SERVER: Connected to client running at host %d port %d\n", ntohs(clientAddress.sin_addr.s_addr), ntohs(clientAddress.sin_port));
 
         // fork
             pid_t spawnpid = -5;
@@ -164,48 +164,49 @@ int main(int argc, char* argv[]){
                     // key = key
                     memset(buffer, '\0', BUFFER_SIZE);
                     do{
-                        bufferPtr = realloc(bufferPtr, n*2);
+                        n += 128;
+                        bufferPtr = realloc(bufferPtr, n*sizeof(char));
                         // Get the message from the client and display it
                         // Read the client's message from the socket
-                        printf("Server now recieving data.\n");
+                        // printf("Server now recieving data.\n");
                         charsRead = recv(connectionSocket, buffer, BUFFER_SIZE, 0); 
                         if (charsRead < 0){
                             error("ERROR reading from socket");
                         }
                         // copy to bufferPtr
                         strcpy(bufferPtr, buffer);
-                        printf("SERVER: I received this from the client: \"%s\"\n", buffer);
-                        printf("bufferPtr: %s\n", bufferPtr);
+                        // printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+                        // printf("bufferPtr: %s\n", bufferPtr);
                     }while(strstr(bufferPtr,"!!") == NULL);
 
                     bufferPtr[strcspn(bufferPtr, "!!")] = '\0'; // delete the special marker
-                    printf("out of while loop bufferPtr: %s\n", bufferPtr);
+                    // printf("out of while loop bufferPtr: %s\n", bufferPtr);
 
                     memset(buffer, '\0', BUFFER_SIZE);
                     do{
                         keyBuffer = realloc(keyBuffer, n*2);
-                        printf("Server now recieving data.\n");
+                        // printf("Server now recieving data.\n");
                         charsRead = recv(connectionSocket, buffer, BUFFER_SIZE, 0); 
                         if (charsRead < 0){
                             error("ERROR reading from socket");
                         }
                         strcpy(keyBuffer, buffer);
-                        printf("SERVER: I received this from the client: \"%s\"\n", buffer);
-                        printf("keyBuffer: %s\n", keyBuffer);
+                        // printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+                        // printf("keyBuffer: %s\n", keyBuffer);
                         
 
                     }while(strstr(keyBuffer, "@@") == NULL);
 
                     keyBuffer[strcspn(keyBuffer, "@@")] = '\0';
                     // printf("left while loop\n");
-                    printf("out of while loop keyBuffer: %s\n", keyBuffer);
+                    // printf("out of while loop keyBuffer: %s\n", keyBuffer);
                     
                     // do encryption
                     char *encryptedString = encryptData(bufferPtr, keyBuffer);
 
                         
-                    printf("now sending encryptedString: %s\n", encryptedString);
-                    fflush(stdout);
+                    // printf("now sending encryptedString: %s\n", encryptedString);
+                    // fflush(stdout);
                     charsRead = send(connectionSocket, encryptedString, strlen(encryptedString), 0); 
                     if (charsRead < 0){error("ERROR writing to socket");}
 
@@ -216,16 +217,17 @@ int main(int argc, char* argv[]){
                     
 
                     free(bufferPtr);
+                    free(keyBuffer);
                     // Close the connection socket for this client
                     close(connectionSocket);
-                    printf("fork exiting..\n");
+                    // printf("fork exiting..\n");
                     exit(0); // break out of the while loop??
                     break;
                 // parent fork
                 default:
                 waitpid(spawnpid, &childExitMethod, 0);
-                printf("Child exit status: %d\n", childExitMethod);  
-                fflush(stdout);              
+                // printf("Child exit status: %d\n", childExitMethod);  
+                // fflush(stdout);              
             }
     }
 
