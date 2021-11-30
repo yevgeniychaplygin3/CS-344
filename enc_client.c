@@ -54,7 +54,6 @@ int main(int argc, char* argv[]){
     fseek(fp, 0, SEEK_END);
     fseek(fp2, 0, SEEK_END);
     
-
     long int textFileSize = ftell(fp);
     long int keyFileSize = ftell(fp2);
 
@@ -63,8 +62,6 @@ int main(int argc, char* argv[]){
         exit(1);
     }
     // set fp back to beginning of file.
-    // fseek(fp, 0, SEEK_SET);
-    // fseek(fp2, 0, SEEK_SET);
     rewind(fp);
     rewind(fp2);
 
@@ -109,9 +106,6 @@ int main(int argc, char* argv[]){
     keyBuffer[newLineIndex] = '@'; 
     keyBuffer[newLineIndex+1] = '@'; 
     keyBuffer[newLineIndex+2] = '\0'; // might not need
-
-    // printf("stringBuffer %s\n", stringBuffer);
-    // printf("keyBuffer %s\n", keyBuffer);
     
     // Create a socket
     socketFD = socket(AF_INET, SOCK_STREAM, 0); 
@@ -124,10 +118,7 @@ int main(int argc, char* argv[]){
     setupAddressStruct(&serverAddress, portNumber);
 
     // Connect to server
-    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
-        error("CLIENT: ERROR connecting");
-
-    }
+    if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){error("CLIENT: ERROR connecting");}
 
     // check to make sure its the enc_server
     // send a 1 to tell them its the client
@@ -140,59 +131,58 @@ int main(int argc, char* argv[]){
     }else{
         // recieve a message back from the client to know we are connected
         charsWritten = recv(socketFD,checkBuf,2,0);
-        // printf("Client recieved this %s\n", checkBuf);
-        if(strncmp(checkBuf, "OK", 2) != 0 || charsWritten < 0){
-            // printf("Client did not recieve OK\n");
-            exit(0);
-        }// else{printf("Client is now connected\n");}
+        if(strncmp(checkBuf, "OK", 2) != 0 || charsWritten < 0){exit(0);}
     }
-    
+
     // Send message to server
-    // Write to the server
+    int count=0;
     do{
         // send the plaintext file
-        // printf("Client now sending string %s\n", stringBuffer);
-        charsWritten = send(socketFD, stringBuffer, strlen(stringBuffer), 0); 
-        if (charsWritten < 0){
-            error("CLIENT: ERROR writing to socket");
-        }
-        if (charsWritten < strlen(stringBuffer)){
-            printf("CLIENT: WARNING: Not all data written to socket!\n");
-        }
-        // printf("charsWritten: %d. strlen(stringBuffer): %d\n", charsWritten, (int)strlen(stringBuffer));
+        charsWritten = send(socketFD, stringBuffer+count, 1000, 0); 
+        if (charsWritten < 0){error("CLIENT: ERROR writing to socket");}
+        count += charsWritten;
+    }while(count < strlen(stringBuffer));
 
-    }while(charsWritten < strlen(stringBuffer));
-
+    // make sure the server is ready for the key
+    memset(checkBuf, '\0', 2);
+    charsWritten = recv(socketFD, checkBuf, 2,0);
+    if(strncmp(checkBuf, "OK", 2) != 0 || charsWritten < 0){printf("Client did not recieve OK\n");exit(0);}
+    
     // send the key. 
+    // printf("\n\n\n\nkey: %s\n\n", keyBuffer);
+    count = 0;
     do{
-        // printf("Client now sending key %s\n", keyBuffer);
-        charsWritten = send(socketFD, keyBuffer, strlen(keyBuffer), 0); 
-        if (charsWritten < 0){
-            error("CLIENT: ERROR writing to socket");
-        }
-        if (charsWritten < strlen(keyBuffer)){
-            printf("CLIENT: WARNING: Not all data written to socket!\n");
-        }
+        charsWritten = send(socketFD, keyBuffer+count, 1000, 0); 
+        if (charsWritten < 0){error("CLIENT: ERROR writing to socket");}
+        count += charsWritten;
+    }while(count< strlen(keyBuffer));
+    
+    // make sure we the client is ready for the ciphertext 
+    memset(checkBuf, '\0', 2);
+    charsWritten = recv(socketFD, checkBuf, 2,0);
+    if(strncmp(checkBuf, "OK", 2) != 0 || charsWritten < 0){printf("Client did not recieve OK\n");exit(0);}
 
-        // printf("charsWritten: %d. strlen(keyBuffer): %d\n", charsWritten, (int)strlen(keyBuffer));
-    }while(charsWritten < strlen(keyBuffer));
-        
     // Clear out the buffer again for reuse
     memset(stringBuffer, '\0', sizeof(stringBuffer));
-    memset(keyBuffer, '\0', sizeof(keyBuffer));
-    // Get return message from server
-    // Read data from the socket, leaving \0 at end
-    charsRead = recv(socketFD, stringBuffer, sizeof(stringBuffer) - 1, 0); 
-    if (charsRead < 0){
-        error("CLIENT: ERROR reading from socket");
-    }
-    // printf("charsRead: %d. stringBuffer: %s\n", charsRead, stringBuffer);
+    // memset(keyBuffer, '\0', sizeof(keyBuffer));
+    // Read data from the socket
+    char temp[textFileSize];
+    memset(temp, '\0', textFileSize);
+
+    do{
+        charsRead = recv(socketFD, temp, strlen(keyBuffer) , 0); 
+        if (charsRead < 0){error("CLIENT: ERROR reading from socket");}
+        strcat(stringBuffer, temp);
+    }while(strstr(stringBuffer, "@@") ==NULL);
+    stringBuffer[strcspn(stringBuffer, "@@")] = '\0';
+    // printf("client recivedlen: %d\n", (int)strlen(stringBuffer));
+
+    // let server know we have recived all data
+    send(socketFD, "OK", 2, 0);
+    // ----------------------------------------------------------------------------
     //    (charsRead < strlen(stringBuffer));   // check to see if the length of charsRead matches the length of the original string from the txt file
     // printf("CLIENT: I received this from the server: \"%s\"\n", stringBuffer);
 
-    
-    // use write instead and add a new line
-    // fputs(stringBuffer, stdout);
     // send to stdout here
     write(1, stringBuffer, strlen(stringBuffer));
     write(1, "\n", 1);
